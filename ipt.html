@@ -1,0 +1,200 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>无标题文档</title>
+<style>
+input{
+	display:block;
+	margin-top:10px;
+}
+</style>
+<script type="text/javascript" src="jquery-1.8.3.js"></script>
+<script>
+	/**
+	 * @author weicheng6
+	 * 自定义格式输入框
+	 * 2017.2.23
+	 */
+	;(function($){
+		$.fn.ipt = function(option, params){
+			if (typeof option == 'string') {
+				return $.fn.ipt.methods[option].call(this, params);
+			}
+
+			return this.each(function(){
+				if(this.tagName == "INPUT"){
+					var options = $.extend({}, $.fn.ipt.defaults, $(this).data(), typeof option == 'object' && option),
+							keyRegExp = eval('('+options.keyRegExp+')');
+					options.keyRegExp = /RegExp/.test(keyRegExp) ? keyRegExp : new RegExp(keyRegExp);
+					options.nonkeyRegExp = new RegExp(options.keyRegExp.source,'g');
+
+					$(this).data('options.ipt', options).off('.ipt').on('keypress.ipt', function(e){
+						var l = String.fromCharCode(e.which);
+						if(options.keyRegExp.test(l)){
+							inputValue.call(this ,l ,options);
+						}
+						return false;
+					}).on('paste.ipt',function(e){//复制粘贴
+						var pastedtext = '';
+						if (window.clipboardData && window.clipboardData.getData) { // ie
+							pastedtext = window.clipboardData.getData('text');
+						} else {
+							pastedtext = e.originalEvent.clipboardData.getData('text');
+						}
+						inputValue.call(this ,pastedtext ,options);
+						return false;
+					}).on('dragenter.ipt drop.ipt',function(){//禁止拖入
+						return false;
+					}).on('keydown.ipt',function(e){
+								var keyCode = e.which,
+										l = String.fromCharCode(keyCode);
+								if(e.ctrlKey && keyCode == 90){   			//屏蔽Ctrl+z
+									window.event.returnValue = false;
+									return false;
+								}else if((keyCode>=37 && keyCode<=40) ||	//方向
+										(keyCode>=96 && keyCode<=105) ||			//小键盘
+										(e.ctrlKey && keyCode == 67 ||				//control + C
+										keyCode == 86 || keyCode == 88 ) ||			//control + V / X
+										keyCode == 8  ||							//退格
+										keyCode == 46 ||							//delete
+										keyCode == 13){								//回车
+									return true;
+								}else if(!options.keyRegExp.test(l)){
+									return false;
+								}
+							})
+							/*.on('focus.ipt',function(){
+							 this.value = toFormat.call(this,this.value,options.focusDisplay);
+							 })*/
+							.on('blur.ipt',function(){
+								this.value = toFormat.call(this,this.value,options.blurDisplay);
+							}).trigger('blur.ipt');
+				}
+			});
+		};
+
+		function inputValue(v,options){
+			var selectArr = location.call(this),
+					value = this.value.substring(0,selectArr[0]).concat(v);
+			this.value = toFormat.call(this,value.concat(this.value.substring(selectArr[1],this.value.length)),options.inputDisplay);
+			location.call(this,getInputLoca.call(this,value,options.key));
+		}
+
+		function toFormat(v,inputDisplay){
+			var options = $(this).data('options.ipt'),
+					format = options.format,
+					formatLen;
+			for(var i=0,v=v.match(options.nonkeyRegExp)||[],a;a=v[i++];){
+				formatLen = format.indexOf(options.key)>-1 ? format.indexOf(options.key) : format.length;
+				format = format.replace(options.key,a);
+			}
+			return inputDisplay ? format : format.substring(0,formatLen+1);
+		}
+
+		function getInputLoca(v,key){
+			v = toFormat.call(this,v,true);
+			key = v.indexOf(key);
+			return key>-1 ? key : v.length;
+		}
+
+		function getInputValue(v,i){
+			var options = $(this).data('options.ipt'),
+					format = options.format,
+					value = [];
+			for(var i=i||0,v = v.split(''),a,b; (a=format[i])&&(b=v[i++]);){
+				if(a == options.key && b != options.key){
+					value.push(b);
+				}
+			}
+			return value.join('');
+		}
+
+		function location(value){
+			var elem = this, rng;
+			if(elem&&(elem.tagName=="TEXTAREA"||elem.type.toLowerCase()=="text")){
+				if(typeof elem.selectionEnd == 'undefined'){
+					if(elem.tagName == "TEXTAREA"){
+						rng = event.srcElement.createTextRange();
+						rng.moveToPoint(event.x,event.y);
+					}else{
+						rng = document.selection.createRange();
+					}
+					if(value === undefined){
+						var len = rng.text.length;
+						rng.moveStart("character",-event.srcElement.value.length);
+						return [rng.text.length - len,rng.text.length];
+					}else if(typeof value === "number"){
+						rng.collapse(false);
+						rng.moveEnd("character",value - location.call(this)[1]);
+						//					index>value?( rng.moveEnd("character",value-index)):(rng.moveStart("character",value-index));
+						rng.select();
+					}
+				}else{
+					if(value === undefined){
+						return [elem.selectionStart,elem.selectionEnd];
+					}else if(typeof value === "number"){
+						elem.selectionEnd = value;
+						elem.selectionStart = value;
+					}
+				}
+			}else{
+				if(value === undefined){
+					return undefined;
+				}
+			}
+		}
+
+		$.fn.ipt.methods = {
+			destroy : function(){
+				return this.off('.ipt').removeData('options.ipt');
+			},
+			format : function(){
+				return this.trigger('blur.ipt');
+			},
+			value : function(value){
+				return value === undefined ?
+						toFormat.call(this,this.val(),false) :
+						this.val(value).trigger('blur.ipt');
+			},
+			inputValue : function(value){
+				return value === undefined ?
+						getInputValue.call(this,this.val()) :
+						$.fn.ipt.methods.value.call(this,value);
+			},
+			formatValue : function(value){
+				return value === undefined ?
+						toFormat.call(this,this.val(),true) :
+						$.fn.ipt.methods.value.call(this,value);
+			}
+		};
+
+		$.fn.ipt.defaults = {
+			format:'',
+			key:'-',
+			inputDisplay:true,
+			focusDisplay:false,//ie问题暂时不能使用
+			blurDisplay:false,//ie问题暂时不能使用
+			keyRegExp:/[0-9a-zA-Z]/
+		};
+	})(jQuery);
+</script>
+<script>
+$(function(){
+	$('#mac').ipt({format:'--:--:--:--:--:--',keyRegExp:new RegExp('[a-fA-F0-9]')});
+	$('#tel').ipt({format:'●●● ●●●● ●●●●',key:'●',inputDisplay:true});
+	$('#card').ipt({format:'**** **** **** *****',key:'*',inputDisplay:false,keyRegExp:new RegExp('[0-9]')});
+	$('#gdtel').ipt({format:'··-··-··-··-··-··',key:'·'});
+	$('.ipt').ipt();
+});
+</script>
+</head>
+<body>
+	<input id="mac"/>
+	<input id="tel"/>
+	<input id="card"/>
+	<input id="gdtel"/>
+	<div class="ipt"></div>
+	<input id="IDcard" class="ipt" data-format="------ ---- -- -- ----" data-key-reg-exp="new RegExp('[0-9]')" />
+</body>
+</html>
