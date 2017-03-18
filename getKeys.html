@@ -1,0 +1,174 @@
+<!doctype html>
+<head>
+<meta charset="utf-8"/>
+<style>
+body{
+	height:100%;
+	width:100%;
+}
+body,
+p{
+	margin:0;
+	padding:0;
+}
+.output-wrap {
+	min-height: 132px;
+	position: relative;
+	z-index: 9;
+	height:50%;
+    padding: 10px;
+    border: 1px solid #dedede;
+    background-color: #fff;
+	margin:10px;
+}
+.textarea {
+    border: 0;
+    resize: none;
+    outline: 0;
+    z-index: 3;
+    color: #333;
+    overflow: hidden;
+	height:132px;
+	width:100%;
+	font: 16px Arial, STHeiti, 宋体, 'WenQuanYi Micro Hei', sans-serif;
+}
+.keys span:hover {
+	background-color:#FF0;
+}
+.keys p {
+	cursor:default;
+	word-wrap: break-word;
+	font:宋体;
+	font-size:14px;
+}
+</style>
+<!--<script src="jquery-1.8.3.min.js"></script>-->
+</head>
+<body>
+<div class="output-wrap">
+	<textarea class="textarea" id="baidu_translate_input" data-height="70"></textarea>
+</div>
+<div class="output-wrap">
+	<textarea class="textarea" id="results" data-height="70"></textarea>
+</div>
+<div class="output-wrap keys" id="keys">
+</div>
+<div class="output-wrap keys" id="filter">
+</div>
+<script src="http://apps.bdimg.com/libs/jquery/1.9.1/jquery.min.js"></script>
+<script src="common/plugins/md5.js"></script>
+<script type="text/javascript">
+$(function(){
+	var $keys = $('#keys'),
+		$textarea = $('#baidu_translate_input'),
+		$filter = $('#filter'),
+		$results = $('#results');
+
+	$textarea.on('input propertychange afterpaste',function(){
+		$results.val('');
+		$keys.empty();
+		$filter.empty();
+		var value = $('.textarea').val().replace(/^\s+|[\r\f]|\s+$/g,'');
+		value = value.split('\n');
+		var i = 0,
+			len = value.length,
+			arr = [];
+		getTranArr();
+		//for(var i=0,len=value.length;i<len;i++){
+		function getTranArr(){
+			translate(value[i],function(data){
+				if(data.error_msg){
+					arr.push('');
+				}else{
+					value[i].replace(/^\s+|[\n\r\f]|\s+$/g,'') == data.trans_result[0].src ? arr.push(data.trans_result[0].dst) : arr.push('');
+				}
+				if(++i != len)
+					getTranArr();
+				else
+					getKeys(arr);
+			});
+		}
+		
+		//}getKeys(data)
+	});
+	
+	$keys.on('click','span',function(){
+		getFilterKey($(this).text());
+	});
+	$keys.on('copy','p',function(e){
+		e.originalEvent.clipboardData.setData('text',$filter.text());
+	});
+	
+	function translate(value,callback){
+		var appid = '2015063000000001';
+		var key = '12345678';
+		var salt = (new Date).getTime();
+		var query = value;
+		// 多个query可以用\n连接  如 query='apple\norange\nbanana\npear'
+		var str1 = appid + query + salt +key;
+		var sign = MD5(str1);
+		$.ajax({
+			url: 'http://api.fanyi.baidu.com/api/trans/vip/translate',
+			type: 'get',
+			dataType: 'jsonp',
+			data: {
+				q: query,
+				appid: appid,
+				salt: salt,
+				from: 'zh',
+				to: 'en',
+				sign: sign
+			},
+			success: function (data,a,b) {
+				callback && callback(data);
+				/*if(data.error_msg){
+					console && console.log(data.error_msg);
+					$keys.empty();
+					$filter.empty();
+					return;
+				}
+				$('.textarea').val().replace(/^\s+|[\n\r\f]|\s+$/g,'') == data.trans_result[0].src && getKeys(data);*/
+			} 
+		});
+	}
+	
+	function getKeys(data){
+		var results = '';
+		for(var i=0,len=data.length;i<len;i++){
+			$keys.append(getkeyHtml(data[i]));
+			results += getTextAreaRes(data[i]);
+		}
+		$results.val(results);
+	}
+	
+	function getkeyHtml(v){
+		return '<p>'
+			+ v == '' ? '\n' : getKey(v).replace(/([a-zA-Z0-9]+)/g,function(v,$1){
+					return '<span>'+$1+'</span>';
+				})
+			+ '</p>';
+	}
+	
+	function getTextAreaRes(v){
+		return getKey(v)+'\n';
+	}
+	
+	function getKey(v){
+		return v.toLowerCase().replace(/[^\w\s]|\s+$/g,'').replace(/[\s]+/g,'_');
+	}
+	
+	function getFilterKey(v){
+		$filter.append('_'+v);
+		formatFilter();
+	}
+	
+	function formatFilter(){
+		var text = $filter.text();
+		text = text.replace(/^[\s_]+|[\s_]+$/,'').replace(/[\s_]+/g,' ');
+		$filter.html(getkeyHtml(text));
+	}
+});
+
+
+</script>
+</body>
